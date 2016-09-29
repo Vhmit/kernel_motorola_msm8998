@@ -1645,10 +1645,7 @@ const struct inode_operations reiserfs_dir_inode_operations = {
 	.mknod = reiserfs_mknod,
 	.rename = reiserfs_rename,
 	.setattr = reiserfs_setattr,
-	.setxattr = generic_setxattr,
-	.getxattr = generic_getxattr,
 	.listxattr = reiserfs_listxattr,
-	.removexattr = generic_removexattr,
 	.permission = reiserfs_permission,
 	.get_acl = reiserfs_get_acl,
 	.set_acl = reiserfs_set_acl,
@@ -1663,10 +1660,7 @@ const struct inode_operations reiserfs_symlink_inode_operations = {
 	.follow_link = page_follow_link_light,
 	.put_link = page_put_link,
 	.setattr = reiserfs_setattr,
-	.setxattr = generic_setxattr,
-	.getxattr = generic_getxattr,
 	.listxattr = reiserfs_listxattr,
-	.removexattr = generic_removexattr,
 	.permission = reiserfs_permission,
 };
 
@@ -1675,10 +1669,7 @@ const struct inode_operations reiserfs_symlink_inode_operations = {
  */
 const struct inode_operations reiserfs_special_inode_operations = {
 	.setattr = reiserfs_setattr,
-	.setxattr = generic_setxattr,
-	.getxattr = generic_getxattr,
 	.listxattr = reiserfs_listxattr,
-	.removexattr = generic_removexattr,
 	.permission = reiserfs_permission,
 	.get_acl = reiserfs_get_acl,
 	.set_acl = reiserfs_set_acl,
