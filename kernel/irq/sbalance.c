@@ -29,6 +29,7 @@
 
 #include <linux/freezer.h>
 #include <linux/irq.h>
+#include <linux/kthread.h>
 #include <linux/list_sort.h>
 #include "../sched/sched.h"
 #include "internals.h"
@@ -217,7 +218,7 @@ static void balance_irqs(void)
 	struct bal_irq *bi;
 	int cpu;
 
-	cpus_read_lock();
+	get_online_cpus();
 	rcu_read_lock();
 
 	/* Find the available CPUs for balancing, if there are any */
@@ -290,7 +291,7 @@ try_next_heaviest:
 		if (cpumask_weight(&cpus) == 2)
 			goto unlock;
 
-		__cpumask_clear_cpu(max_bd->cpu, &cpus);
+		cpumask_clear_cpu(max_bd->cpu, &cpus);
 	}
 
 	/* Find the CPU with the lowest relative interrupt count */
@@ -337,7 +338,7 @@ try_next_heaviest:
 		goto try_next_heaviest;
 unlock:
 	rcu_read_unlock();
-	cpus_read_unlock();
+	put_online_cpus();
 
 	/* Reset each balance domain for the next run */
 	for_each_possible_cpu(cpu) {
@@ -352,9 +353,9 @@ struct process_timer {
 	struct task_struct *task;
 };
 
-static void process_timeout(struct timer_list *t)
+static void process_timeout(unsigned long __data)
 {
-	struct process_timer *timeout = from_timer(timeout, t, timer);
+	struct process_timer *timeout = (void *)__data;
 
 	wake_up_process(timeout->task);
 }
@@ -370,7 +371,8 @@ static void sbalance_wait(long poll_jiffies)
 	freezer_do_not_count();
 	__set_current_state(TASK_IDLE);
 	timer.task = current;
-	timer_setup_on_stack(&timer.timer, process_timeout, TIMER_DEFERRABLE);
+	setup_deferrable_timer_on_stack(&timer.timer, process_timeout,
+					(unsigned long)&timer);
 	timer.timer.expires = jiffies + poll_jiffies;
 	add_timer(&timer.timer);
 	schedule();
