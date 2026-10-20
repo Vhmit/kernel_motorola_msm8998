@@ -1704,44 +1704,49 @@ static inline bool may_mount(void)
  * unixes. Our API is identical to OSF/1 to avoid making a mess of AMD
  */
 
-static int path_umount(struct path *path, int flags)
+static int can_umount(const struct path *path, int flags)
 {
-	struct mount *mnt;
-	int retval;
-	bool user_request = !(current->flags & PF_KTHREAD);
+	struct mount *mnt = real_mount(path->mnt);
 
 	if (flags & ~(MNT_FORCE | MNT_DETACH | MNT_EXPIRE | UMOUNT_NOFOLLOW))
 		return -EINVAL;
-
 	if (!may_mount())
 		return -EPERM;
-
-	mnt = real_mount(path->mnt);
-	retval = -EINVAL;
 	if (path->dentry != path->mnt->mnt_root)
-		goto dput_and_out;
+		return -EINVAL;
 	if (!check_mnt(mnt))
-		goto dput_and_out;
+		return -EINVAL;
 	if (mnt->mnt.mnt_flags & MNT_LOCKED) /* Check optimistically */
-		goto dput_and_out;
-	retval = -EPERM;
+		return -EINVAL;
 	if (flags & MNT_FORCE && !capable(CAP_SYS_ADMIN))
-		goto dput_and_out;
+		return -EPERM;
 
-	/* flush delayed_fput to put mnt_count */
-	if (user_request)
-		flush_delayed_fput_wait();
+	return 0;
+}
 
-	retval = do_umount(mnt, flags);
-dput_and_out:
+int path_umount(struct path *path, int flags)
+{
+	struct mount *mnt = real_mount(path->mnt);
+	int ret;
+	bool user_request = !(current->flags & PF_KTHREAD);
+
+	ret = can_umount(path, flags);
+	if (!ret) {
+		/* flush delayed_fput to put mnt_count */
+		if (user_request)
+			flush_delayed_fput_wait();
+
+		ret = do_umount(mnt, flags);
+	}
+
 	/* we mustn't call path_put() as that would clear mnt_expiry_mark */
 	dput(path->dentry);
 	mntput_no_expire(mnt);
 
 	if (!user_request)
-		return retval;
+		return ret;
 
-	if (!retval) {
+	if (!ret) {
 		/*
 		 * If the last delayed_fput() is called during do_umount()
 		 * and makes mnt_count zero, we need to guarantee to register
@@ -1752,12 +1757,12 @@ dput_and_out:
 		/* flush delayed_mntput_work to put sb->s_active */
 		flush_delayed_mntput_wait();
 	}
-	if (!retval || (flags & MNT_FORCE)) {
+	if (!ret || (flags & MNT_FORCE)) {
 		/* filesystem needs to handle unclosed namespaces */
 		if (mnt->mnt.mnt_sb->s_op->umount_end)
 			mnt->mnt.mnt_sb->s_op->umount_end(mnt->mnt.mnt_sb, flags);
 	}
-	return retval;
+	return ret;
 }
 
 SYSCALL_DEFINE2(umount, char __user *, name, int, flags)
