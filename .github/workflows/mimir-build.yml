@@ -90,23 +90,19 @@ jobs:
           -d "text=🚀 *New version of Mimir Kernel is compiling!*%0A%0A📦 *Repo:* \`${{ env.REPO_NAME }}\` %0A📱 *Device:* ${{ env.DEVICE_NAME }} (\`${{ env.DEVICE }}\`) %0A🌿 *Branch:* \`${{ github.ref_name }}\` %0A🧩 *Droidspaces:* \`${{ github.event.inputs.droidspaces }}\`   /   🔐 *KernelSU:* \`${{ github.event.inputs.ksu }}\` %0A⏳ *Please wait for completion...*" \
           -d "reply_markup={\"inline_keyboard\":[[{\"text\":\"🔍 View real-time log\",\"url\":\"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}]]}"
 
-      - name: Clone mimir-build-script & prepare
+      - name: Prepare build script
         run: |
-          git clone --depth=1 --single-branch -b v4.x-clang https://github.com/Vhmit/mimir-build-script.git /tmp/mimir-build-script
-          cp /tmp/mimir-build-script/build.sh ./build.sh
+          if [ ! -f "./build.sh" ]; then
+            echo "Error: build.sh not found in the kernel tree!"
+            exit 1
+          fi
+
           chmod +x ./build.sh
-
-          # Replaces a branch in the AnyKernel3 git clone to remove the lineageos_ prefix
-          sed -i 's|git clone.*AnyKernel3.git -b "${DEVICE}"|git clone --depth=1 --single-branch https://github.com/Vhmit/AnyKernel3.git -b "${DEVICE#lineageos_}"|g' ./build.sh
-
-          # Replaces the ZIP filename construction to remove the lineageos_ prefix
-          sed -i 's|zip_name="${kernel_name}-\([^-]*\)-${DEVICE}-|zip_name="${kernel_name}-\1-${DEVICE#lineageos_}-|g' ./build.sh
-          sed -i 's|zip_name="${kernel_name}-${DEVICE}-|zip_name="${kernel_name}-${DEVICE#lineageos_}-|g' ./build.sh
 
       - name: Run build script
         id: build
         run: |
-          ARGS="lineageos_${{ env.DEVICE }} -z"
+          ARGS="${{ env.DEVICE }} -z"
           if [ "${{ github.event.inputs.ksu }}" = "y" ]; then
             ARGS="$ARGS -ksu"
           fi
@@ -197,4 +193,4 @@ jobs:
 
       - name: Cleanup workspace
         if: always()
-        run: rm -rf out tc *.zip /tmp/mimir-build-script build_output.log
+        run: rm -rf out tc *.zip build_output.log
